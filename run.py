@@ -332,7 +332,7 @@ def preload_next_images():
         pass  # Ignore any errors in preloading
 
 def main():
-    global screen, running, screen_width, screen_height
+    global screen, running, screen_width, screen_height, current_pair_index
     
     # Initialize pygame with only the modules we need
     pygame.display.init()
@@ -364,6 +364,11 @@ def main():
     
     # Find and organize local images
     find_local_images()
+    
+    # Set a random initial pair index
+    if image_pairs:
+        current_pair_index = random.randint(0, len(image_pairs) - 1)
+        print(f"Starting with random pair {current_pair_index + 1}/{len(image_pairs)}")
     
     # Start the button monitoring thread
     button_thread = threading.Thread(target=monitor_buttons)
