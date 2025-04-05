@@ -48,7 +48,9 @@ button2_previous = 0
 screen_width = 0
 screen_height = 0
 last_button_press_time = 0
-debounce_time = 0.1
+debounce_time = 0.05  # Reduced from 0.1 to 0.05 seconds
+# Replace hide flags with a selected image index
+selected_image = None  # None means no image is selected, 0 for left, 1 for right
 
 # Create a command queue for thread-safe communication
 command_queue = queue.Queue()
@@ -98,6 +100,18 @@ def get_pair_id(filename):
     match = re.match(r'(\d+)_[12]\.jpg', filename)
     return match.group(1) if match else None
 
+def send_vote(pair_id, option):
+    """Send a vote to the server"""
+    try:
+        url = f"https://this-or-that-machine-server.noshado.ws/vote?id={pair_id}&option={option}&key={API_KEY}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            print(f"Successfully voted for pair {pair_id}, option {option}")
+        else:
+            print(f"Failed to vote: {response.status_code}")
+    except Exception as e:
+        print(f"Error sending vote: {e}")
+
 def organize_image_pairs():
     """Organize images into pairs"""
     global image_pairs
@@ -119,7 +133,12 @@ def organize_image_pairs():
     image_pairs = []
     for pair_id, paths in pair_dict.items():
         if paths[0] and paths[1]:  # Only include pairs where both images exist
-            image_pairs.append(paths)
+            # Ensure _1 image is first (left) and _2 image is second (right)
+            if os.path.basename(paths[0]).endswith('_1.jpg'):
+                image_pairs.append(paths)
+            else:
+                # Swap the order if needed
+                image_pairs.append([paths[1], paths[0]])
     
     # Sort pairs by ID first (for consistent initial order)
     image_pairs.sort(key=lambda x: get_pair_id(os.path.basename(x[0])))
@@ -182,6 +201,10 @@ def display_current_pair():
     
     # Calculate dimensions for each image
     half_width = screen_width // 2
+    image_spacing = 15  # Reduced from 40 to 20 pixels
+    
+    # Debug output
+    print(f"Displaying new pair")
     
     # Process and display each image
     for i, img in enumerate(current_images):
@@ -189,7 +212,7 @@ def display_current_pair():
         img_width, img_height = img.get_size()
         
         # Calculate scale factor to fit half screen while preserving aspect ratio
-        scale_factor = min(half_width / img_width, screen_height / img_height)
+        scale_factor = min((half_width - image_spacing) / img_width, screen_height / img_height)
         
         # Scale the image
         new_width = int(img_width * scale_factor)
@@ -204,11 +227,40 @@ def display_current_pair():
         
         # Calculate position to center the image in its half of the screen
         x_pos = i * half_width + (half_width - new_width) // 2
-        # Move images down
-        y_pos = (screen_height - new_height) // 2 + 40
+        if i == 1:  # Right image
+            x_pos += image_spacing // 2
+        else:  # Left image
+            x_pos -= image_spacing // 2
+            
+        # Move images down with increased top margin
+        y_pos = (screen_height - new_height) // 2 + 50  
         
         # Draw the image
         screen.blit(scaled_image, (x_pos, y_pos))
+        
+        # Debug output
+        if selected_image is not None and selected_image != i:
+            print(f"Drawing box on image {i}")
+        
+        # Draw a box within the selected image
+        if selected_image is not None and selected_image != i:
+            # Draw a more visible box with a bright color
+            box_color = (0, 0, 0, 0)
+            box_margin = 10  # Smaller margin for a larger box
+            
+            # Create a surface for the box with alpha channel
+            box_surface = pygame.Surface((new_width - 2*box_margin, new_height - 2*box_margin), pygame.SRCALPHA)
+            box_surface.fill(box_color)
+            
+            # Draw the box surface on top of the image
+            screen.blit(box_surface, (x_pos + box_margin, y_pos + box_margin))
+            
+            # Draw a solid border around the box - now using full image dimensions
+            border_color = (0, 255, 0)
+            border_thickness = 50  # Thicker border
+            pygame.draw.rect(screen, border_color, 
+                           (x_pos, y_pos, new_width, new_height), 
+                           border_thickness)
     
     # Update display
     pygame.display.flip()
@@ -269,7 +321,7 @@ def find_local_images():
 
 def monitor_buttons():
     """Monitor GPIO button states in a separate thread"""
-    global running, button1_previous, button2_previous, last_button_press_time
+    global running, button1_previous, button2_previous, last_button_press_time, selected_image
     
     print(f"Monitoring GPIO pins {button1_pin} and {button2_pin}")
     
@@ -284,27 +336,67 @@ def monitor_buttons():
             if current_time - last_button_press_time >= debounce_time:
                 # Check if button1 was just pressed (transition from 0 to 1)
                 if button1_current == 1 and button1_previous == 0:
-                    print("Button 1 pressed - Next pair")
-                    # Use high priority for faster response
+                    print("Button 1 pressed - Select right image and show next pair")
+                    # Select right image (index 1)
+                    selected_image = 1
+                    print(f"Set selected_image to {selected_image}")
+                    command_queue.put("display", block=False)
+                    
+                    # Send vote for option 1 (right image)
+                    if image_pairs and current_pair_index < len(image_pairs):
+                        pair_id = get_pair_id(os.path.basename(image_pairs[current_pair_index][0]))
+                        if pair_id:
+                            send_vote(pair_id, 1)
+                    
+                    # Wait 0.5 seconds instead of 1
+                    time.sleep(0.5)
+                    
+                    # Show next pair
                     command_queue.put("next", block=False)
+                    
+                    # Reset selection for the new pair
+                    selected_image = None
+                    print(f"Reset selected_image to {selected_image}")
+                    command_queue.put("display", block=False)
+                    
                     last_button_press_time = current_time
                     
                 # Check if button2 was just pressed (transition from 0 to 1)
                 if button2_current == 1 and button2_previous == 0:
-                    print("Button 2 pressed - Previous pair")
-                    # Use high priority for faster response
-                    command_queue.put("previous", block=False)
+                    print("Button 2 pressed - Select left image and show next pair")
+                    # Select left image (index 0)
+                    selected_image = 0
+                    print(f"Set selected_image to {selected_image}")
+                    command_queue.put("display", block=False)
+                    
+                    # Send vote for option 2 (left image)
+                    if image_pairs and current_pair_index < len(image_pairs):
+                        pair_id = get_pair_id(os.path.basename(image_pairs[current_pair_index][0]))
+                        if pair_id:
+                            send_vote(pair_id, 2)
+                    
+                    # Wait 0.5 seconds instead of 1
+                    time.sleep(0.5)
+                    
+                    # Show next pair
+                    command_queue.put("next", block=False)
+                    
+                    # Reset selection for the new pair
+                    selected_image = None
+                    print(f"Reset selected_image to {selected_image}")
+                    command_queue.put("display", block=False)
+                    
                     last_button_press_time = current_time
             
             # Update previous states
             button1_previous = button1_current
             button2_previous = button2_current
             
-            # Shorter delay for faster button checks
-            time.sleep(0.05)
+            # Reduced delay for faster button checks
+            time.sleep(0.01)  # Reduced from 0.05 to 0.01
         except Exception as e:
             print(f"Error in button monitoring thread: {e}")
-            time.sleep(0.5)  # Shorter delay on error
+            time.sleep(0.1)  # Reduced from 0.5 to 0.1
 
 def preload_next_images():
     """Preload next and previous images in the background to speed up navigation"""
@@ -332,7 +424,7 @@ def preload_next_images():
         pass  # Ignore any errors in preloading
 
 def main():
-    global screen, running, screen_width, screen_height, current_pair_index
+    global screen, running, screen_width, screen_height, current_pair_index, selected_image
     
     # Initialize pygame with only the modules we need
     pygame.display.init()
@@ -341,6 +433,9 @@ def main():
     # Hide mouse cursor
     pygame.mouse.set_visible(False)
     
+    # Reset selection
+    selected_image = None
+    
     # Get the current display size
     info = pygame.display.Info()
     screen_width = info.current_w
@@ -348,7 +443,7 @@ def main():
     
     # Try to set up the display in fullscreen mode
     try:
-        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
         screen_width = screen.get_width()
         screen_height = screen.get_height()
         print(f"Display initialized at {screen_width}x{screen_height}")
@@ -357,7 +452,7 @@ def main():
         # Fallback to a smaller resolution if fullscreen fails
         screen_width = 640
         screen_height = 480
-        screen = pygame.display.set_mode((screen_width, screen_height))
+        screen = pygame.display.set_mode((screen_width, screen_height), pygame.HWSURFACE | pygame.DOUBLEBUF)
         print(f"Fallback display initialized at {screen_width}x{screen_height}")
     
     pygame.display.set_caption("RPi Image Pair Viewer")
@@ -427,9 +522,8 @@ def main():
             except queue.Empty:
                 pass  # No commands in the queue
             
-            # Very short delay to keep the CPU from maxing out
-            # but still ensure quick button response
-            time.sleep(0.01)
+            # Minimal delay to prevent CPU overload while maintaining responsiveness
+            time.sleep(0.001)  # Reduced from 0.01 to 0.001
     
     except KeyboardInterrupt:
         print("\nExiting...")
