@@ -301,6 +301,61 @@ def previous_pair():
     current_pair_index = new_index
     command_queue.put("display")
 
+def sync_with_server():
+    """Sync local images with server - delete removed pairs and download new ones"""
+    try:
+        # Get the list of IDs from the API
+        response = requests.get(f'https://this-or-that-machine-server.noshado.ws/get-all-pair-ids?key={API_KEY}')
+        if response.status_code != 200:
+            print(f"Failed to get IDs from API: {response.status_code}")
+            return
+            
+        server_pair_ids = set(response.json())
+        base_url = "https://ykqtmmyiqcezkfafikuq.supabase.co/storage/v1/object/public/images/"
+        
+        # Create images directory if it doesn't exist
+        if not os.path.exists("images"):
+            os.makedirs("images")
+            
+        # Get list of existing files and their pair IDs
+        local_files = os.listdir("images")
+        local_pair_ids = set()
+        
+        # First pass: collect local pair IDs and delete files for removed pairs
+        for filename in local_files:
+            if filename.endswith('.jpg'):
+                pair_id = get_pair_id(filename)
+                if pair_id:
+                    local_pair_ids.add(pair_id)
+                    # If this pair ID is not on the server, delete the file
+                    if pair_id not in server_pair_ids:
+                        try:
+                            os.remove(os.path.join("images", filename))
+                            print(f"Deleted removed pair file: {filename}")
+                        except Exception as e:
+                            print(f"Error deleting file {filename}: {e}")
+        
+        # Second pass: download new pairs
+        for pair_id in server_pair_ids:
+            if pair_id not in local_pair_ids:
+                for suffix in ['1', '2']:
+                    filename = f"{pair_id:05d}_{suffix}.jpg"
+                    url = urljoin(base_url, filename)
+                    print(f"Downloading new pair file: {filename}")
+                    try:
+                        img_response = requests.get(url)
+                        if img_response.status_code == 200:
+                            with open(os.path.join("images", filename), 'wb') as f:
+                                f.write(img_response.content)
+                            print(f"Successfully downloaded {filename}")
+                        else:
+                            print(f"Failed to download {filename}: {img_response.status_code}")
+                    except Exception as e:
+                        print(f"Error downloading {filename}: {e}")
+                        
+    except Exception as e:
+        print(f"Error in sync_with_server: {e}")
+
 def find_local_images():
     """Find all images in the images/ directory and organize them into pairs"""
     global image_pairs
@@ -313,8 +368,8 @@ def find_local_images():
         print("Created images/ directory. Please put your images there and restart.")
         return
     
-    # Download any missing images first
-    download_missing_images()
+    # Sync with server first
+    sync_with_server()
     
     # Organize images into pairs
     organize_image_pairs()
