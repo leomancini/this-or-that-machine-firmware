@@ -51,6 +51,9 @@ last_button_press_time = 0
 debounce_time = 0.05  # Reduced from 0.1 to 0.05 seconds
 # Replace hide flags with a selected image index
 selected_image = None  # None means no image is selected, 0 for left, 1 for right
+# Keep track of recently shown pairs to avoid duplicates
+recent_pairs_history = []  # List of recently shown pair indices
+MAX_HISTORY_SIZE = 5  # Number of recent pairs to remember
 
 # Create a command queue for thread-safe communication
 command_queue = queue.Queue()
@@ -267,7 +270,7 @@ def display_current_pair():
 
 def next_pair():
     """Switch to the next pair"""
-    global current_pair_index, image_pairs, current_images
+    global current_pair_index, image_pairs, current_images, recent_pairs_history
     
     if not image_pairs:
         return
@@ -275,17 +278,26 @@ def next_pair():
     # Free current images memory    
     current_images = [None, None]
     
-    # Get a random index different from the current one
+    # Get a random index different from the current one and not in recent history
     new_index = current_pair_index
-    while new_index == current_pair_index and len(image_pairs) > 1:
+    attempts = 0
+    max_attempts = len(image_pairs) * 2  # Prevent infinite loop
+    
+    while (new_index == current_pair_index or new_index in recent_pairs_history) and attempts < max_attempts:
         new_index = random.randint(0, len(image_pairs) - 1)
+        attempts += 1
+    
+    # Update history
+    recent_pairs_history.append(current_pair_index)
+    if len(recent_pairs_history) > MAX_HISTORY_SIZE:
+        recent_pairs_history.pop(0)
     
     current_pair_index = new_index
     command_queue.put("display")
 
 def previous_pair():
     """Switch to the previous pair"""
-    global current_pair_index, image_pairs, current_images
+    global current_pair_index, image_pairs, current_images, recent_pairs_history
     
     if not image_pairs:
         return
@@ -293,10 +305,19 @@ def previous_pair():
     # Free current images memory
     current_images = [None, None]
     
-    # Get a random index different from the current one
+    # Get a random index different from the current one and not in recent history
     new_index = current_pair_index
-    while new_index == current_pair_index and len(image_pairs) > 1:
+    attempts = 0
+    max_attempts = len(image_pairs) * 2  # Prevent infinite loop
+    
+    while (new_index == current_pair_index or new_index in recent_pairs_history) and attempts < max_attempts:
         new_index = random.randint(0, len(image_pairs) - 1)
+        attempts += 1
+    
+    # Update history
+    recent_pairs_history.append(current_pair_index)
+    if len(recent_pairs_history) > MAX_HISTORY_SIZE:
+        recent_pairs_history.pop(0)
     
     current_pair_index = new_index
     command_queue.put("display")
@@ -479,7 +500,7 @@ def preload_next_images():
         pass  # Ignore any errors in preloading
 
 def main():
-    global screen, running, screen_width, screen_height, current_pair_index, selected_image
+    global screen, running, screen_width, screen_height, current_pair_index, selected_image, recent_pairs_history
     
     # Initialize pygame with only the modules we need
     pygame.display.init()
@@ -488,8 +509,9 @@ def main():
     # Hide mouse cursor
     pygame.mouse.set_visible(False)
     
-    # Reset selection
+    # Reset selection and history
     selected_image = None
+    recent_pairs_history = []
     
     # Get the current display size
     info = pygame.display.Info()
