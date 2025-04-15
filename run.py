@@ -331,8 +331,8 @@ def sync_with_server():
             print(f"Failed to get IDs from API: {response.status_code}")
             return
             
-        # Convert server IDs to strings for consistent comparison
-        server_pair_ids = set(str(id) for id in response.json())
+        # Convert server IDs to strings with leading zeros for consistent comparison
+        server_pair_ids = set(f"{id:05d}" for id in response.json())
         base_url = "https://ykqtmmyiqcezkfafikuq.supabase.co/storage/v1/object/public/images/"
         
         # Create images directory if it doesn't exist
@@ -349,7 +349,7 @@ def sync_with_server():
             if filename.endswith('.jpg'):
                 pair_id = get_pair_id(filename)
                 if pair_id:
-                    local_pair_ids.add(pair_id)
+                    local_pair_ids.add(pair_id)  # Keep as string with leading zeros
         
         print(f"Found {len(local_pair_ids)} local pairs")
         print(f"Server has {len(server_pair_ids)} pairs")
@@ -360,8 +360,7 @@ def sync_with_server():
             print(f"Downloading {len(new_pairs)} new pairs...")
             for pair_id in new_pairs:
                 for suffix in ['1', '2']:
-                    # Convert to int only when creating filename
-                    filename = f"{int(pair_id):05d}_{suffix}.jpg"
+                    filename = f"{pair_id}_{suffix}.jpg"
                     url = urljoin(base_url, filename)
                     print(f"Downloading new pair file: {filename}")
                     try:
