@@ -348,7 +348,7 @@ def sync_with_server():
             if filename.endswith('.jpg'):
                 pair_id = get_pair_id(filename)
                 if pair_id:
-                    local_pair_ids.add(pair_id)
+                    local_pair_ids.add(int(pair_id))  # Convert to int for comparison
         
         print(f"Found {len(local_pair_ids)} local pairs")
         print(f"Server has {len(server_pair_ids)} pairs")
@@ -359,7 +359,7 @@ def sync_with_server():
             print(f"Downloading {len(new_pairs)} new pairs...")
             for pair_id in new_pairs:
                 for suffix in ['1', '2']:
-                    filename = f"{pair_id:05d}_{suffix}.jpg"
+                    filename = f"{pair_id:05d}_{suffix}.jpg"  # Pad with zeros to 5 digits
                     url = urljoin(base_url, filename)
                     print(f"Downloading new pair file: {filename}")
                     try:
@@ -382,7 +382,7 @@ def sync_with_server():
             for filename in local_files:
                 if filename.endswith('.jpg'):
                     pair_id = get_pair_id(filename)
-                    if pair_id and pair_id in removed_pairs:
+                    if pair_id and int(pair_id) in removed_pairs:  # Convert to int for comparison
                         try:
                             os.remove(os.path.join("images", filename))
                             print(f"Deleted removed pair file: {filename}")
