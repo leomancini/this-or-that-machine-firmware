@@ -337,6 +337,7 @@ def sync_with_server():
         # Create images directory if it doesn't exist
         if not os.path.exists("images"):
             os.makedirs("images")
+            print("Created images/ directory")
             
         # Get list of existing files and their pair IDs
         local_files = os.listdir("images")
@@ -349,9 +350,14 @@ def sync_with_server():
                 if pair_id:
                     local_pair_ids.add(pair_id)
         
+        print(f"Found {len(local_pair_ids)} local pairs")
+        print(f"Server has {len(server_pair_ids)} pairs")
+        
         # Second pass: download new pairs first
-        for pair_id in server_pair_ids:
-            if pair_id not in local_pair_ids:
+        new_pairs = server_pair_ids - local_pair_ids
+        if new_pairs:
+            print(f"Downloading {len(new_pairs)} new pairs...")
+            for pair_id in new_pairs:
                 for suffix in ['1', '2']:
                     filename = f"{pair_id:05d}_{suffix}.jpg"
                     url = urljoin(base_url, filename)
@@ -366,17 +372,24 @@ def sync_with_server():
                             print(f"Failed to download {filename}: {img_response.status_code}")
                     except Exception as e:
                         print(f"Error downloading {filename}: {e}")
+        else:
+            print("No new pairs to download")
         
         # Third pass: delete removed pairs only after downloading new ones
-        for filename in local_files:
-            if filename.endswith('.jpg'):
-                pair_id = get_pair_id(filename)
-                if pair_id and pair_id not in server_pair_ids:
-                    try:
-                        os.remove(os.path.join("images", filename))
-                        print(f"Deleted removed pair file: {filename}")
-                    except Exception as e:
-                        print(f"Error deleting file {filename}: {e}")
+        removed_pairs = local_pair_ids - server_pair_ids
+        if removed_pairs:
+            print(f"Removing {len(removed_pairs)} pairs that no longer exist on server...")
+            for filename in local_files:
+                if filename.endswith('.jpg'):
+                    pair_id = get_pair_id(filename)
+                    if pair_id and pair_id in removed_pairs:
+                        try:
+                            os.remove(os.path.join("images", filename))
+                            print(f"Deleted removed pair file: {filename}")
+                        except Exception as e:
+                            print(f"Error deleting file {filename}: {e}")
+        else:
+            print("No pairs to remove")
                         
     except Exception as e:
         print(f"Error in sync_with_server: {e}")
@@ -393,11 +406,20 @@ def find_local_images():
         print("Created images/ directory. Please put your images there and restart.")
         return
     
-    # Sync with server first
-    sync_with_server()
-    
-    # Organize images into pairs
+    # Only organize existing local images
     organize_image_pairs()
+
+def sync_and_reload():
+    """Sync with server and reload images"""
+    global image_pairs, current_pair_index
+    
+    print("Syncing with server and reloading images...")
+    sync_with_server()
+    image_pairs.clear()
+    organize_image_pairs()
+    current_pair_index = 0
+    load_current_pair()
+    display_current_pair()
 
 def monitor_buttons():
     """Monitor GPIO button states in a separate thread"""
@@ -575,12 +597,8 @@ def main():
                     elif event.key == pygame.K_LEFT or event.key == pygame.K_p:
                         previous_pair()
                     elif event.key == pygame.K_r:
-                        # Reload image list
-                        image_pairs.clear()
-                        find_local_images()
-                        current_pair_index = 0
-                        load_current_pair()
-                        display_current_pair()
+                        # Sync with server and reload
+                        sync_and_reload()
                     elif event.key == pygame.K_f:
                         # Toggle fullscreen (might not work on all platforms)
                         pygame.display.toggle_fullscreen()
