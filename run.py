@@ -323,7 +323,7 @@ def previous_pair():
     command_queue.put("display")
 
 def sync_with_server():
-    """Sync local images with server - delete removed pairs and download new ones"""
+    """Sync local images with server - download new pairs first, then delete removed ones"""
     try:
         # Get the list of IDs from the API
         response = requests.get(f'https://this-or-that-machine-server.noshado.ws/get-all-pair-ids?key={API_KEY}')
@@ -342,21 +342,14 @@ def sync_with_server():
         local_files = os.listdir("images")
         local_pair_ids = set()
         
-        # First pass: collect local pair IDs and delete files for removed pairs
+        # First pass: collect local pair IDs
         for filename in local_files:
             if filename.endswith('.jpg'):
                 pair_id = get_pair_id(filename)
                 if pair_id:
                     local_pair_ids.add(pair_id)
-                    # If this pair ID is not on the server, delete the file
-                    if pair_id not in server_pair_ids:
-                        try:
-                            os.remove(os.path.join("images", filename))
-                            print(f"Deleted removed pair file: {filename}")
-                        except Exception as e:
-                            print(f"Error deleting file {filename}: {e}")
         
-        # Second pass: download new pairs
+        # Second pass: download new pairs first
         for pair_id in server_pair_ids:
             if pair_id not in local_pair_ids:
                 for suffix in ['1', '2']:
@@ -373,6 +366,17 @@ def sync_with_server():
                             print(f"Failed to download {filename}: {img_response.status_code}")
                     except Exception as e:
                         print(f"Error downloading {filename}: {e}")
+        
+        # Third pass: delete removed pairs only after downloading new ones
+        for filename in local_files:
+            if filename.endswith('.jpg'):
+                pair_id = get_pair_id(filename)
+                if pair_id and pair_id not in server_pair_ids:
+                    try:
+                        os.remove(os.path.join("images", filename))
+                        print(f"Deleted removed pair file: {filename}")
+                    except Exception as e:
+                        print(f"Error deleting file {filename}: {e}")
                         
     except Exception as e:
         print(f"Error in sync_with_server: {e}")
