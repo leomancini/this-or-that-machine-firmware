@@ -406,7 +406,10 @@ def find_local_images():
         print("Created images/ directory. Please put your images there and restart.")
         return
     
-    # Only organize existing local images
+    # Sync with server first to ensure we have the latest images
+    sync_with_server()
+    
+    # Organize images into pairs
     organize_image_pairs()
 
 def sync_and_reload():
