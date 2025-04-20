@@ -333,15 +333,21 @@ def display_message(message, submessage=None):
     main_font = pygame.font.Font(None, 48)
     sub_font = pygame.font.Font(None, 36)
     
+    # Calculate position to match left image
+    half_width = screen_width // 2
+    image_spacing = 15
+    left_margin = (half_width - image_spacing) // 2 - image_spacing // 2
+    top_margin = 50  # Keep some top margin for readability
+    
     # Render main message
     text = main_font.render(message, True, (255, 255, 255))
-    text_rect = text.get_rect(center=(screen_width//2, screen_height//2 - 30))
+    text_rect = text.get_rect(topleft=(left_margin, top_margin))
     screen.blit(text, text_rect)
     
     # Render submessage if provided
     if submessage:
         sub_text = sub_font.render(submessage, True, (200, 200, 200))
-        sub_rect = sub_text.get_rect(center=(screen_width//2, screen_height//2 + 30))
+        sub_rect = sub_text.get_rect(topleft=(left_margin, top_margin + 60))  # 60 pixels below main message
         screen.blit(sub_text, sub_rect)
     
     # Update display
