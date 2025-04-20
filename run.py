@@ -333,19 +333,15 @@ def display_message(message, submessage=None):
     main_font = pygame.font.Font(None, 48)
     sub_font = pygame.font.Font(None, 36)
     
-    # Set margins
-    left_margin = 20
-    top_margin = 50
-    
     # Render main message
     text = main_font.render(message, True, (255, 255, 255))
-    text_rect = text.get_rect(topleft=(left_margin, top_margin))
+    text_rect = text.get_rect(center=(screen_width//2, screen_height//2 - 30))
     screen.blit(text, text_rect)
     
     # Render submessage if provided
     if submessage:
         sub_text = sub_font.render(submessage, True, (200, 200, 200))
-        sub_rect = sub_text.get_rect(topleft=(left_margin, top_margin + 60))  # 60 pixels below main message
+        sub_rect = sub_text.get_rect(center=(screen_width//2, screen_height//2 + 30))
         screen.blit(sub_text, sub_rect)
     
     # Update display
@@ -613,10 +609,6 @@ def main():
         print(f"Fallback display initialized at {screen_width}x{screen_height}")
     
     pygame.display.set_caption("RPi Image Pair Viewer")
-    
-    # Show ready message immediately
-    display_message("Ready", "Starting up...")
-    time.sleep(1)  # Show ready message for 1 second
     
     # Find and organize local images
     find_local_images()
