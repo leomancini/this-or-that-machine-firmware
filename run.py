@@ -333,8 +333,8 @@ def display_message(message, submessage=None):
     main_font = pygame.font.Font(None, 48)
     sub_font = pygame.font.Font(None, 36)
     
-    # Calculate left margin (10% of screen width)
-    left_margin = int(screen_width * 0.1)
+    # Calculate left margin (5% of screen width)
+    left_margin = int(screen_width * 0.05)
     
     # Render main message
     text = main_font.render(message, True, (255, 255, 255))
