@@ -62,7 +62,7 @@ def download_missing_images():
     """Download missing images from the API"""
     try:
         # Get the list of IDs from the API
-        response = requests.get(f'https://this-or-that-machine-server.noshado.ws/get-all-pair-ids?key={API_KEY}')
+        response = requests.get(f'https://this-or-that-machine-server.noshado.ws/pairs/get-all-pair-ids?key={API_KEY}')
         if response.status_code != 200:
             print(f"Failed to get IDs from API: {response.status_code}")
             return
@@ -106,7 +106,7 @@ def get_pair_id(filename):
 def send_vote(pair_id, option):
     """Send a vote to the server"""
     try:
-        url = f"https://this-or-that-machine-server.noshado.ws/vote?id={pair_id}&option={option}&key={API_KEY}"
+        url = f"https://this-or-that-machine-server.noshado.ws/votes/vote?id={pair_id}&option={option}&key={API_KEY}"
         response = requests.get(url)
         if response.status_code == 200:
             print(f"Successfully voted for pair {pair_id}, option {option}")
@@ -326,7 +326,7 @@ def sync_with_server():
     """Sync local images with server - download new pairs first, then delete removed ones"""
     try:
         # Get the list of IDs from the API
-        response = requests.get(f'https://this-or-that-machine-server.noshado.ws/get-all-pair-ids?key={API_KEY}')
+        response = requests.get(f'https://this-or-that-machine-server.noshado.ws/pairs/get-all-pair-ids?key={API_KEY}')
         if response.status_code != 200:
             print(f"Failed to get IDs from API: {response.status_code}")
             return
