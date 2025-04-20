@@ -336,8 +336,9 @@ def display_message(message, submessage=None):
     # Calculate position to match left image
     half_width = screen_width // 2
     image_spacing = 15
-    left_margin = (half_width - image_spacing) // 2 - image_spacing // 2
-    top_margin = 50  # Keep some top margin for readability
+    margin = image_spacing + 20  # Use same margin for both top and left
+    left_margin = margin
+    top_margin = margin
     
     # Render main message
     text = main_font.render(message, True, (255, 255, 255))
