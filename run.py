@@ -322,13 +322,43 @@ def previous_pair():
     current_pair_index = new_index
     command_queue.put("display")
 
+def display_message(message, submessage=None):
+    """Display a message on the screen"""
+    global screen, screen_width, screen_height
+    
+    # Fill the screen with black
+    screen.fill((0, 0, 0))
+    
+    # Create font objects
+    main_font = pygame.font.Font(None, 48)
+    sub_font = pygame.font.Font(None, 36)
+    
+    # Render main message
+    text = main_font.render(message, True, (255, 255, 255))
+    text_rect = text.get_rect(center=(screen_width//2, screen_height//2 - 30))
+    screen.blit(text, text_rect)
+    
+    # Render submessage if provided
+    if submessage:
+        sub_text = sub_font.render(submessage, True, (200, 200, 200))
+        sub_rect = sub_text.get_rect(center=(screen_width//2, screen_height//2 + 30))
+        screen.blit(sub_text, sub_rect)
+    
+    # Update display
+    pygame.display.flip()
+
 def sync_with_server():
     """Sync local images with server - download new pairs first, then delete removed ones"""
     try:
+        # Show initial sync message
+        display_message("Syncing with server...", "Checking for new images")
+        
         # Get the list of IDs from the API
         response = requests.get(f'https://this-or-that-machine-server.noshado.ws/pairs/get-all-pair-ids?key={API_KEY}')
         if response.status_code != 200:
             print(f"Failed to get IDs from API: {response.status_code}")
+            display_message("Sync failed", f"API error: {response.status_code}")
+            time.sleep(2)
             return
             
         # Convert server IDs to strings with leading zeros for consistent comparison
@@ -357,11 +387,18 @@ def sync_with_server():
         # Second pass: download new pairs first
         new_pairs = server_pair_ids - local_pair_ids
         if new_pairs:
-            print(f"Downloading {len(new_pairs)} new pairs...")
-            for pair_id in new_pairs:
+            display_message("Downloading new images...", f"Found {len(new_pairs)} new pairs")
+            time.sleep(1)
+            
+            for i, pair_id in enumerate(new_pairs):
                 for suffix in ['1', '2']:
                     filename = f"{pair_id}_{suffix}.jpg"
                     url = urljoin(base_url, filename)
+                    
+                    # Update progress message
+                    progress = f"Downloading {i+1}/{len(new_pairs)} pairs"
+                    display_message("Downloading new images...", progress)
+                    
                     print(f"Downloading new pair file: {filename}")
                     try:
                         img_response = requests.get(url)
@@ -374,12 +411,15 @@ def sync_with_server():
                     except Exception as e:
                         print(f"Error downloading {filename}: {e}")
         else:
-            print("No new pairs to download")
+            display_message("No new images found", "All images are up to date")
+            time.sleep(1)
         
         # Third pass: delete removed pairs only after downloading new ones
         removed_pairs = local_pair_ids - server_pair_ids
         if removed_pairs:
-            print(f"Removing {len(removed_pairs)} pairs that no longer exist on server...")
+            display_message("Cleaning up...", f"Removing {len(removed_pairs)} old pairs")
+            time.sleep(1)
+            
             for filename in local_files:
                 if filename.endswith('.jpg'):
                     pair_id = get_pair_id(filename)
@@ -391,9 +431,15 @@ def sync_with_server():
                             print(f"Error deleting file {filename}: {e}")
         else:
             print("No pairs to remove")
+            
+        # Show completion message
+        display_message("Sync complete!", "Loading image pairs...")
+        time.sleep(1)
                         
     except Exception as e:
         print(f"Error in sync_with_server: {e}")
+        display_message("Sync failed", str(e))
+        time.sleep(2)
 
 def find_local_images():
     """Find all images in the images/ directory and organize them into pairs"""
