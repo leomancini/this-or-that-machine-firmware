@@ -54,6 +54,7 @@ selected_image = None  # None means no image is selected, 0 for left, 1 for righ
 # Keep track of recently shown pairs to avoid duplicates
 recent_pairs_history = []  # List of recently shown pair indices
 MAX_HISTORY_SIZE = 5  # Number of recent pairs to remember
+INACTIVITY_TIMEOUT = 300  # 5 minutes in seconds
 
 # Create a command queue for thread-safe communication
 command_queue = queue.Queue()
@@ -586,7 +587,7 @@ def preload_next_images():
         pass  # Ignore any errors in preloading
 
 def main():
-    global screen, running, screen_width, screen_height, current_pair_index, selected_image, recent_pairs_history
+    global screen, running, screen_width, screen_height, current_pair_index, selected_image, recent_pairs_history, last_button_press_time
     
     # Initialize pygame with only the modules we need
     pygame.display.init()
@@ -598,6 +599,7 @@ def main():
     # Reset selection and history
     selected_image = None
     recent_pairs_history = []
+    last_button_press_time = time.time()  # Initialize last button press time
     
     # Get the current display size
     info = pygame.display.Info()
@@ -654,22 +656,28 @@ def main():
                         running = False
                     elif event.key == pygame.K_RIGHT or event.key == pygame.K_n:
                         next_pair()
+                        last_button_press_time = time.time()  # Update last button press time
                     elif event.key == pygame.K_LEFT or event.key == pygame.K_p:
                         previous_pair()
+                        last_button_press_time = time.time()  # Update last button press time
                     elif event.key == pygame.K_r:
                         # Sync with server and reload
                         sync_and_reload()
+                        last_button_press_time = time.time()  # Update last button press time
                     elif event.key == pygame.K_f:
                         # Toggle fullscreen (might not work on all platforms)
                         pygame.display.toggle_fullscreen()
+                        last_button_press_time = time.time()  # Update last button press time
             
             # Check the command queue (non-blocking) with minimal delay
             try:
                 command = command_queue.get_nowait()
                 if command == "next":
                     next_pair()
+                    last_button_press_time = time.time()  # Update last button press time
                 elif command == "previous":
                     previous_pair()
+                    last_button_press_time = time.time()  # Update last button press time
                 elif command == "display":
                     load_current_pair()
                     display_current_pair()
@@ -680,6 +688,13 @@ def main():
                 command_queue.task_done()
             except queue.Empty:
                 pass  # No commands in the queue
+            
+            # Check for inactivity timeout
+            current_time = time.time()
+            if current_time - last_button_press_time >= INACTIVITY_TIMEOUT:
+                print("Inactivity timeout reached, switching to next pair")
+                next_pair()
+                last_button_press_time = current_time  # Reset the timer
             
             # Minimal delay to prevent CPU overload while maintaining responsiveness
             time.sleep(0.001)  # Reduced from 0.01 to 0.001
