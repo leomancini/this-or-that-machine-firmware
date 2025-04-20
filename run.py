@@ -491,10 +491,11 @@ def monitor_buttons():
             button2_current = GPIO.input(button2_pin)
             
             current_time = time.time()
-            # Only process button presses if enough time has passed (debouncing)
-            if current_time - last_button_press_time >= debounce_time:
-                # Check if button1 was just pressed (transition from 0 to 1)
-                if button1_current == 1 and button1_previous == 0:
+            
+            # Check if button1 was just pressed (transition from 0 to 1)
+            if button1_current == 1 and button1_previous == 0:
+                # Only process if enough time has passed since last button press
+                if current_time - last_button_press_time >= debounce_time:
                     print("Button 1 pressed - Select right image and show next pair")
                     # Select right image (index 1)
                     selected_image = 1
@@ -519,9 +520,11 @@ def monitor_buttons():
                     command_queue.put("display", block=False)
                     
                     last_button_press_time = current_time
-                    
-                # Check if button2 was just pressed (transition from 0 to 1)
-                if button2_current == 1 and button2_previous == 0:
+            
+            # Check if button2 was just pressed (transition from 0 to 1)
+            if button2_current == 1 and button2_previous == 0:
+                # Only process if enough time has passed since last button press
+                if current_time - last_button_press_time >= debounce_time:
                     print("Button 2 pressed - Select left image and show next pair")
                     # Select left image (index 0)
                     selected_image = 0
@@ -551,11 +554,11 @@ def monitor_buttons():
             button1_previous = button1_current
             button2_previous = button2_current
             
-            # Reduced delay for faster button checks
-            time.sleep(0.01)  # Reduced from 0.05 to 0.01
+            # 100ms polling interval - more CPU efficient while still responsive enough
+            time.sleep(0.1)
         except Exception as e:
             print(f"Error in button monitoring thread: {e}")
-            time.sleep(0.1)  # Reduced from 0.5 to 0.1
+            time.sleep(0.1)
 
 def preload_next_images():
     """Preload next and previous images in the background to speed up navigation"""
