@@ -59,6 +59,9 @@ INACTIVITY_TIMEOUT = 300  # 5 minutes in seconds
 # Create a command queue for thread-safe communication
 command_queue = queue.Queue()
 
+# Create a persistent session for reusing connections
+session = requests.Session()
+
 def download_missing_images():
     """Download missing images from the API"""
     try:
@@ -106,15 +109,20 @@ def get_pair_id(filename):
 
 def send_vote(pair_id, option):
     """Send a vote to the server"""
+    global session, API_KEY
     try:
         url = f"https://this-or-that-machine-server.noshado.ws/votes/vote?id={pair_id}&option={option}&key={API_KEY}"
-        response = requests.get(url)
+        response = session.get(url, timeout=3)
         if response.status_code == 200:
             print(f"Successfully voted for pair {pair_id}, option {option}")
         else:
             print(f"Failed to vote: {response.status_code}")
     except Exception as e:
         print(f"Error sending vote: {e}")
+
+def send_vote_async(pair_id, option):
+    """Offload send_vote to a background thread so it doesn't block the UI"""
+    threading.Thread(target=send_vote, args=(pair_id, option), daemon=True).start()
 
 def organize_image_pairs():
     """Organize images into pairs"""
@@ -507,7 +515,7 @@ def monitor_buttons():
                     if image_pairs and current_pair_index < len(image_pairs):
                         pair_id = get_pair_id(os.path.basename(image_pairs[current_pair_index][0]))
                         if pair_id:
-                            send_vote(pair_id, 1)
+                            send_vote_async(pair_id, 1)
                     
                     # Wait 0.5 seconds instead of 1
                     time.sleep(0.5)
@@ -536,7 +544,7 @@ def monitor_buttons():
                     if image_pairs and current_pair_index < len(image_pairs):
                         pair_id = get_pair_id(os.path.basename(image_pairs[current_pair_index][0]))
                         if pair_id:
-                            send_vote(pair_id, 2)
+                            send_vote_async(pair_id, 2)
                     
                     # Wait 0.5 seconds instead of 1
                     time.sleep(0.5)
@@ -624,6 +632,14 @@ def main():
     
     # Find and organize local images
     find_local_images()
+    
+    # Pre-warm the API connection to reduce first-vote latency
+    try:
+        print("Pre-warming API connection...")
+        session.get(f"https://this-or-that-machine-server.noshado.ws/pairs/get-all-pair-ids?key={API_KEY}", timeout=3)
+        print("API connection ready")
+    except Exception as e:
+        print(f"Pre-warming connection failed (non-critical): {e}")
     
     # Set a random initial pair index
     if image_pairs:
