@@ -160,7 +160,7 @@ def organize_image_pairs():
     
     print(f"Found {len(image_pairs)} complete image pairs")
 
-def load_current_pair():
+def load_current_pair(retry_count=0):
     """Load both images of the current pair"""
     global current_images, current_pair_index, image_pairs
     
@@ -189,17 +189,27 @@ def load_current_pair():
         
     except Exception as e:
         print(f"Error loading image pair: {e}")
-        # Create error images
-        current_images = [
-            pygame.Surface((screen_width//2, screen_height)),
-            pygame.Surface((screen_width//2, screen_height))
-        ]
-        for i, img in enumerate(current_images):
-            img.fill((0, 0, 0))
-            font = pygame.font.Font(None, 36)
-            text = font.render(f"Error loading image {i+1}", True, (255, 0, 0))
-            text_rect = text.get_rect(center=(screen_width//4, screen_height//2))
-            img.blit(text, text_rect)
+        
+        # If we've retried too many times, give up and show error
+        if retry_count >= 5:
+            print("Too many consecutive errors loading images, showing error message")
+            current_images = [
+                pygame.Surface((screen_width//2, screen_height)),
+                pygame.Surface((screen_width//2, screen_height))
+            ]
+            for i, img in enumerate(current_images):
+                img.fill((0, 0, 0))
+                font = pygame.font.Font(None, 36)
+                text = font.render(f"Error loading images", True, (255, 0, 0))
+                text_rect = text.get_rect(center=(screen_width//4, screen_height//2))
+                img.blit(text, text_rect)
+            return
+        
+        # Try the next pair
+        print(f"Skipping to next pair (retry {retry_count + 1}/5)")
+        next_pair()
+        # Recursively try to load the new pair
+        load_current_pair(retry_count + 1)
 
 def display_current_pair():
     """Display the current pair of images side by side"""
